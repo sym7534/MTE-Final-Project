@@ -477,7 +477,20 @@ int main() {
   Brain.Screen.setCursor(1,1);
   Brain.Screen.print("%d cards per", cardsPer);
 
-  
+  // const int MODE_DEAL = 0;
+  // const int MODE_SHUFFLE = 1;
+  // const int MODE_SORT = 2;
 
-  shuffleDeal(4, 10);
+  if (mode == 0)
+  {
+    
+  }
+  else if (mode == 1)
+  {
+
+  }
+  else if (mode == 2)
+  {
+    
+  }
 }
