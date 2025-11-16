@@ -449,10 +449,9 @@ int main() {
   
   srand(Brain.Timer.time(msec));
 
+  // gets deal mode
   int mode = selectMode();
-
   Brain.Screen.setCursor(1,1);
-
   if (mode == MODE_DEAL) {
     Brain.Screen.print("deal selected");
   } else if (mode == MODE_SHUFFLE) {
@@ -465,6 +464,7 @@ int main() {
 
   wait(1,seconds);
 
+  // gets how many players tehre are
   int players = getNumPlayers(10);
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
@@ -472,6 +472,7 @@ int main() {
 
   wait(1, seconds);
 
+  // gets cards per person
   int cardsPer = getCardsPer(52);
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
@@ -491,6 +492,6 @@ int main() {
   }
   else if (mode == 2)
   {
-    
+
   }
 }
