@@ -1,6 +1,7 @@
-mte100 final project
+MTE100 Final Project
 
-Ryan Wang
-Josef Gavronskiy
-Raiwin Podaima
-Sobhan Zare 
+Authors:
+    Ryan Wang
+    Josef Gavronskiy
+    Raiwin Podaima
+    Sobhan Zare 
