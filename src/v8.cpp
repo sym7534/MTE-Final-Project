@@ -95,7 +95,7 @@ bool rotateToHeadingPID(double targetDeg,
 }
 
 // ---------------------- dispense one card (v3: anti-double-deal) ----------------------
-const double DEG_PER_CARD = 200.0;      // tune for your feeder
+const double DEG_PER_CARD = 240.0;      // tune for your feeder
 const int    MAX_MS = 240;              // watchdog for dispense motion
 
 void dispenseOneCard(){
@@ -419,6 +419,8 @@ bool askContinue() {
 		}
         // end of while loop - if checkmark not pressed, goes back to top
 	}
+
+  return false;
 }
 
 // get current color of card in tray
