@@ -130,7 +130,7 @@ void dealCardsToPosition(double heading, int numCards) {
 
 bool allDealt(int seats[],int numplayers, int req) {
   for (int i = 0; i < numplayers; i ++) {
-    if (seats[i] != numplayers) return false;
+    if (seats[i] != req) return false;
   }
 
   return true;
