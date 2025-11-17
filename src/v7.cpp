@@ -119,9 +119,7 @@ void dispenseOneCard(){
   MotorDispense.stop(brake);
 }
 
-// ---------------------- shuffle algorithm helpers ----------------------
-
-// Deal multiple cards to a position
+// deal a set number of cards to a specific position, using rotation function + dispensing function()
 void dealCardsToPosition(double heading, int numCards) {
   rotateToHeadingPID(heading, 1.25, 0.0, 0.12, 2000, 2.0);
   for (int i = 0; i < numCards; i++) {
@@ -482,16 +480,52 @@ int main() {
   // const int MODE_SHUFFLE = 1;
   // const int MODE_SORT = 2;
 
-  if (mode == 0)
+  if (mode == MODE_DEAL)
   {
-    
-  }
-  else if (mode == 1)
-  {
+    // deals cards to each player, based on how many cards per player
+    wait(100, msec);
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("dealing cards");
 
-  }
-  else if (mode == 2)
-  {
+    for (int i = 0; i < cardsPer; i++) 
+    {
+      for (int j = 0; j < players; j++) 
+      {
+        double heading = 360.0 / players * j; 
+        // "divides" 360 degrees into angles based on how many players, then multiplies by j for the current player
+        dealCardsToPosition(heading, 1);
+      }
+    }
 
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
   }
+  else if (mode == MODE_SHUFFLE)
+  {
+    // runs shuffle dealing function
+    wait(1, seconds);
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("shuffle dealing");
+
+    shuffleDeal(players, cardsPer);
+
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
+  }
+  else if (mode == MODE_SORT)
+  {
+    // runs colorSort() 
+    wait(1, seconds);
+    colorSort();
+  }
+  
+  wait(5,seconds);
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1,1);
+  Brain.Screen.print("Reached program end. Exiting.");
+  Brain.programStop();
 }
