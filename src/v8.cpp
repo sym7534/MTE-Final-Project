@@ -168,6 +168,7 @@ void shuffleDeal(int numSeats, int totalCardsPerSeat) {
 const int MODE_DEAL = 0;
 const int MODE_SHUFFLE = 1;
 const int MODE_SORT = 2;
+const int MODE_EXIT = 3;
 
 /*
 method runs user interface for selecting which process to run
@@ -177,13 +178,6 @@ returns an integer indicating mode (deal, shuffle, or sort)
 int selectMode() {
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
-  Brain.Screen.print("Press chk to prcd");
-
-  // waits until player presses and releases checkmark    
-  while (!Brain.buttonCheck.pressing()) {}
-  while (Brain.buttonCheck.pressing()) {}
-
-  Brain.Screen.clearScreen();
   
   wait(1,seconds);
 
@@ -206,6 +200,10 @@ int selectMode() {
     Brain.Screen.newLine();
     Brain.Screen.print("SORT");
     if (i == MODE_SORT) 
+      Brain.Screen.print(" ***");
+    Brain.Screen.newLine();
+    Brain.Screen.print("EXIT");
+    if (i == MODE_EXIT) 
       Brain.Screen.print(" ***");
     Brain.Screen.newLine();
 
@@ -235,8 +233,8 @@ int selectMode() {
 
     // overflow conditions
     if (i == -1) {
-      i = MODE_SORT;
-    } else if (i==3) {
+      i = MODE_EXIT;
+    } else if (i==4) {
       i = MODE_DEAL;
     }
   }
@@ -249,13 +247,6 @@ taking part in the game. returns a number between 2 and max
 int getNumPlayers(int max) {
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
-  Brain.Screen.print("Press chk to prcd");
-
-  // waits until the player presses and releases check button
-  while (!Brain.buttonCheck.pressing()) {}
-  while (Brain.buttonCheck.pressing()) {}
-
-  Brain.Screen.clearScreen();
   
   wait(1,seconds);
 
@@ -300,13 +291,6 @@ int getNumPlayers(int max) {
 int getCardsPer(int max) {
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
-  Brain.Screen.print("Press chk to prcd");
-
-  // waits until the player presses and releases check button
-  while (!Brain.buttonCheck.pressing()) {}
-  while (Brain.buttonCheck.pressing()) {}
-
-  Brain.Screen.clearScreen();
 
   wait(1,seconds);
 
@@ -526,127 +510,146 @@ int main()
 
 	// gets deal mode
 	int mode = selectMode();
-	Brain.Screen.setCursor(1,1);
-	if (mode == MODE_DEAL)
+  while(mode != MODE_EXIT)
+  {
+    Brain.Screen.clearScreen();
+	  Brain.Screen.setCursor(1,1);
+	  if (mode == MODE_DEAL)
     {
-		Brain.Screen.print("deal selected");
-	}
+		  Brain.Screen.print("deal selected");
+      wait(1,seconds);
+
+	    // gets how many players tehre are
+	    int players = getNumPlayers(10);
+	    Brain.Screen.clearScreen();
+	    Brain.Screen.setCursor(1,1);
+  	  Brain.Screen.print("%d players", players);
+
+	    wait(1, seconds);
+
+	    // gets cards per person
+      int max = 0;
+      max = 52/players;
+	    int cardsPer = getCardsPer(max);
+	    Brain.Screen.clearScreen();
+	    Brain.Screen.setCursor(1,1);
+	    Brain.Screen.print("%d cards per", cardsPer);
+	  }
     else if (mode == MODE_SHUFFLE)
     {
-		Brain.Screen.print("shuffle selected");
-	}
+		  Brain.Screen.print("shuffle selected");
+      wait(1,seconds);
+
+	    // gets how many players tehre are
+	    int players = getNumPlayers(10);
+	    Brain.Screen.clearScreen();
+	    Brain.Screen.setCursor(1,1);
+  	  Brain.Screen.print("%d players", players);
+
+	    wait(1, seconds);
+
+	    // gets cards per person
+      int max = 0;
+      max = 52/players;
+	    int cardsPer = getCardsPer(max);
+	    Brain.Screen.clearScreen();
+	    Brain.Screen.setCursor(1,1);
+	    Brain.Screen.print("%d cards per", cardsPer);
+	  }
     else if (mode == MODE_SORT)
     {
-		Brain.Screen.print("sort selected");
-	}
-    else
-    {
-		Brain.Screen.print("%d", mode);
-	}
+		  Brain.Screen.print("sort selected");
+      wait(1, seconds);
+	  }
 
-	wait(1,seconds);
-
-	// gets how many players tehre are
-	int players = getNumPlayers(10);
-	Brain.Screen.clearScreen();
-	Brain.Screen.setCursor(1,1);
-	Brain.Screen.print("%d players", players);
-
-	wait(1, seconds);
-
-	// gets cards per person
-	int cardsPer = getCardsPer(52);
-	Brain.Screen.clearScreen();
-	Brain.Screen.setCursor(1,1);
-	Brain.Screen.print("%d cards per", cardsPer);
-
-	// const int MODE_DEAL = 0;
-	// const int MODE_SHUFFLE = 1;
-	// const int MODE_SORT = 2;
-
-	if (mode == MODE_DEAL)
+	  if (mode == MODE_DEAL)
     {
 
-		bool keepDealing = true;
-		int cycle = 0;
+		  bool keepDealing = true;
+		  int cycle = 0;
 
-		// infinite loop for dealing cycles
-		while (keepDealing)
+		  // infinite loop for dealing cycles
+		  while (keepDealing)
+      {
+			  cycle++;
+
+			  // deals cards to each player, based on how many cards per player
+			  wait(100, msec);
+			  Brain.Screen.clearScreen();
+			  Brain.Screen.setCursor(1,1);
+			  Brain.Screen.print("dealing cards (cycle %d)", cycle);
+
+			  for (int i = 0; i < cardsPer; i++)
         {
-			cycle++;
+				  for (int j = 0; j < players; j++)
+          {
+					  double heading = 360.0 / players * j;
+					  // "divides" 360 degrees into angles based on how many players, then multiplies by j for the current player
+					  dealCardsToPosition(heading, 1);
+				  }
+			  }
 
-			// deals cards to each player, based on how many cards per player
-			wait(100, msec);
-			Brain.Screen.clearScreen();
-			Brain.Screen.setCursor(1,1);
-			Brain.Screen.print("dealing cards (cycle %d)", cycle);
+			  Brain.Screen.clearScreen();
+			  Brain.Screen.setCursor(1,1);
+			  Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
 
-			for (int i = 0; i < cardsPer; i++)
-            {
-				for (int j = 0; j < players; j++)
-                {
-					double heading = 360.0 / players * j;
-					// "divides" 360 degrees into angles based on how many players, then multiplies by j for the current player
-					dealCardsToPosition(heading, 1);
-				}
-			}
+			  wait(1, seconds);
 
-			Brain.Screen.clearScreen();
-			Brain.Screen.setCursor(1,1);
-			Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
+			  // ask user if they want another cycle
+			  keepDealing = askContinue();
+		  } 
 
-			wait(1, seconds);
-
-			// ask user if they want another cycle
-			keepDealing = askContinue();
-		}
-
-		Brain.Screen.clearScreen();
-		Brain.Screen.setCursor(1,1);
-		Brain.Screen.print("completed %d cycles", cycle);
-	}
+		  Brain.Screen.clearScreen();
+		  Brain.Screen.setCursor(1,1);
+		  Brain.Screen.print("completed %d cycles", cycle);
+	  }
     else if (mode == MODE_SHUFFLE)
     {
-		// infinite loop for shuffle dealing cycles
-		bool keepDealing = true;
-		int cycle = 0;
+		  // infinite loop for shuffle dealing cycles
+		  bool keepDealing = true;
+		  int cycle = 0;
 
-		while (keepDealing)
-        {
-			cycle++;
+		  while (keepDealing)
+      {
+			  cycle++;
 
-			// runs shuffle dealing function
-			wait(1, seconds);
-			Brain.Screen.clearScreen();
-			Brain.Screen.setCursor(1,1);
-			Brain.Screen.print("shuffle dealing (cycle %d)", cycle);
+			  // runs shuffle dealing function
+			  wait(1, seconds);
+			  Brain.Screen.clearScreen();
+			  Brain.Screen.setCursor(1,1);
+			  Brain.Screen.print("shuffle dealing (cycle %d)", cycle);
 
-			shuffleDeal(players, cardsPer);
+			  shuffleDeal(players, cardsPer);
 
-			Brain.Screen.clearScreen();
-			Brain.Screen.setCursor(1,1);
-			Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
+			  Brain.Screen.clearScreen();
+			  Brain.Screen.setCursor(1,1);
+			  Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
 
-			wait(1, seconds);
+			  wait(1, seconds);
 
-			// ask user if they want another cycle
-			keepDealing = askContinue();
-		}
+			  // ask user if they want another cycle
+			  keepDealing = askContinue();
+		  }
 
-		Brain.Screen.clearScreen();
-		Brain.Screen.setCursor(1,1);
-		Brain.Screen.print("Completed %d cycles", cycle);
-	}
+		  Brain.Screen.clearScreen();
+		  Brain.Screen.setCursor(1,1);
+		  Brain.Screen.print("Completed %d cycles", cycle);
+	  }
     else if (mode == MODE_SORT)
     {
-		// runs colorSort()
-		wait(1, seconds);
-		colorSort();
-	}
+		  // runs colorSort()
+		  wait(1, seconds);
+		  colorSort();
+	  }
 
-	wait(5,seconds);
-	Brain.Screen.clearScreen();
-	Brain.Screen.setCursor(1,1);
-	Brain.Screen.print("Reached program end. Exiting.");
-	Brain.programStop();
+	  wait(5,seconds);
+	  mode = selectMode();
+  }
+
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1,1);
+  Brain.Screen.print("exiting.");
+  wait(1,seconds);
+
+  Brain.program.stop();
 }
