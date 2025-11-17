@@ -510,6 +510,9 @@ int main()
 
 	// gets deal mode
 	int mode = selectMode();
+  int players = 0;
+  int max = 0;
+  int cardsPer = 0;
   while(mode != MODE_EXIT)
   {
     Brain.Screen.clearScreen();
@@ -520,7 +523,7 @@ int main()
       wait(1,seconds);
 
 	    // gets how many players tehre are
-	    int players = getNumPlayers(10);
+	    players = getNumPlayers(10);
 	    Brain.Screen.clearScreen();
 	    Brain.Screen.setCursor(1,1);
   	  Brain.Screen.print("%d players", players);
@@ -528,9 +531,8 @@ int main()
 	    wait(1, seconds);
 
 	    // gets cards per person
-      int max = 0;
       max = 52/players;
-	    int cardsPer = getCardsPer(max);
+	    cardsPer = getCardsPer(max);
 	    Brain.Screen.clearScreen();
 	    Brain.Screen.setCursor(1,1);
 	    Brain.Screen.print("%d cards per", cardsPer);
@@ -541,7 +543,7 @@ int main()
       wait(1,seconds);
 
 	    // gets how many players tehre are
-	    int players = getNumPlayers(10);
+	    players = getNumPlayers(10);
 	    Brain.Screen.clearScreen();
 	    Brain.Screen.setCursor(1,1);
   	  Brain.Screen.print("%d players", players);
@@ -549,9 +551,8 @@ int main()
 	    wait(1, seconds);
 
 	    // gets cards per person
-      int max = 0;
       max = 52/players;
-	    int cardsPer = getCardsPer(max);
+	    cardsPer = getCardsPer(max);
 	    Brain.Screen.clearScreen();
 	    Brain.Screen.setCursor(1,1);
 	    Brain.Screen.print("%d cards per", cardsPer);
@@ -651,5 +652,5 @@ int main()
   Brain.Screen.print("exiting.");
   wait(1,seconds);
 
-  Brain.program.stop();
+  Brain.programStop();
 }
