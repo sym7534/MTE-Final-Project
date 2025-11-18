@@ -342,7 +342,7 @@ int getCardsPer(int max)
   // runs ui process until return statement
   while (true) 
   {
-    // prompts the user and displays selected number of players
+    // prompts the user and displays selected number of cards per player
     Brain.Screen.setCursor(1,1);
     Brain.Screen.print("within [1,%d]",max);
     Brain.Screen.newLine();
@@ -359,12 +359,12 @@ int getCardsPer(int max)
     // checks if the checkmark was pressed
     if (Brain.buttonCheck.pressing()) 
     {
-        // waits until button is released and then returns # players
+        // waits until button is released and then returns # cards
       while (Brain.buttonCheck.pressing()) {}
       return i;
     }
 
-    // ensures # players selected stays within bounds
+    // ensures # cards selected stays within bounds
     if (i > 1 && Brain.buttonLeft.pressing()) 
     {
       i --;
@@ -372,6 +372,14 @@ int getCardsPer(int max)
     else if (i < max && Brain.buttonRight.pressing()) 
     {
       i ++;
+    }
+    else if (i <= 1 && Brain.buttonLeft.pressing())
+    {
+        i = max;
+    }
+    else if (i > max && Brain.buttonRight.pressing())
+    {
+        i = 1;
     }
 
     // waits until buttons are released before proceeding
