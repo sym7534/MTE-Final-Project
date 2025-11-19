@@ -321,7 +321,9 @@ int getNumPlayers(int max)
   {
     // prompts the user and displays selected number of players
     Brain.Screen.setCursor(1,1);
-    Brain.Screen.print("within [1,%d]",max);
+    Brain.Screen.print("Player count");
+    Brain.Screen.newLine();
+    Brain.Screen.print("Between [1,%d]",max);
     Brain.Screen.newLine();
     Brain.Screen.print("%d",i);
 
@@ -374,7 +376,9 @@ int getCardsPer(int max)
   {
     // prompts the user and displays selected number of cards per player
     Brain.Screen.setCursor(1,1);
-    Brain.Screen.print("within [1,%d]",max);
+    Brain.Screen.print("Cards per player");
+    Brain.Screen.newLine();
+    Brain.Screen.print("Between [1,%d]",max);
     Brain.Screen.newLine();
     Brain.Screen.print("%d",i);
 
@@ -777,7 +781,9 @@ int main()
 			  wait(100, msec);
 			  Brain.Screen.clearScreen();
 			  Brain.Screen.setCursor(1,1);
-			  Brain.Screen.print("dealing cards (cycle %d)", cycle);
+              Brain.Screen.print("dealing cards");
+              Brain.Screen.newLine();
+			  Brain.Screen.print("cycle %d", cycle);
 
 			  for (int i = 0; i < cardsPer; i++)
         {
@@ -791,7 +797,9 @@ int main()
 
 			  Brain.Screen.clearScreen();
 			  Brain.Screen.setCursor(1,1);
-			  Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
+			  Brain.Screen.print("dealt %d cards", cardsPer);
+              Brain.Screen.newLine();
+              Brain.Screen.print("to %d players", players);
 
 			  wait(1, seconds);
 
@@ -837,13 +845,17 @@ int main()
 			  wait(1, seconds);
 			  Brain.Screen.clearScreen();
 			  Brain.Screen.setCursor(1,1);
-			  Brain.Screen.print("shuffle dealing (cycle %d)", cycle);
+              Brain.Screen.print("shuffle dealing");
+              Brain.Screen.newLine();
+			  Brain.Screen.print("cycle %d", cycle);
 
 			  shuffleDeal(players, cardsPer);
 
 			  Brain.Screen.clearScreen();
 			  Brain.Screen.setCursor(1,1);
-			  Brain.Screen.print("dealt %d cards to %d players", cardsPer, players);
+			  Brain.Screen.print("dealt %d cards", cardsPer);
+              Brain.Screen.newLine();
+              Brain.Screen.print("to %d players", players);
 
 			  wait(1, seconds);
 
