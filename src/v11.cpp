@@ -755,6 +755,22 @@ int main()
 		  // infinite loop for dealing cycles
 		  while (keepDealing)
       {
+            int cyanCheck = getCardColor();
+            while (cyanCheck == 4)
+            {
+                Brain.Screen.clearScreen();
+                Brain.Screen.setCursor(1,1);
+                Brain.Screen.print("no cards detected");
+                Brain.Screen.newLine();
+                Brain.Screen.print("put in cards and");
+                Brain.Screen.newLine();
+                Brain.Screen.print("press check to continue.");
+                while(!Brain.buttonCheck.pressing())
+                {}
+                while(Brain.buttonCheck.pressing())
+                {}
+                cyanCheck = getCardColor();
+            }
 			  cycle++;
 
 			  // deals cards to each player, based on how many cards per player
@@ -797,6 +813,24 @@ int main()
 
 		  while (keepDealing)
       {
+            
+            int cyanCheck = getCardColor();
+            while (cyanCheck == 4)
+            {
+                Brain.Screen.clearScreen();
+                Brain.Screen.setCursor(1,1);
+                Brain.Screen.print("no cards detected");
+                Brain.Screen.newLine();
+                Brain.Screen.print("put in cards and");
+                Brain.Screen.newLine();
+                Brain.Screen.print("press check to continue.");
+                while(!Brain.buttonCheck.pressing())
+                {}
+                while(Brain.buttonCheck.pressing())
+                {}
+                cyanCheck = getCardColor();
+            }
+            
 			  cycle++;
 
 			  // runs shuffle dealing function
@@ -825,6 +859,22 @@ int main()
 	  }
     else if (mode == MODE_SORT)
     {
+        int cyanCheck = getCardColor();
+            while (cyanCheck == 4)
+            {
+                Brain.Screen.clearScreen();
+                Brain.Screen.setCursor(1,1);
+                Brain.Screen.print("no cards detected");
+                Brain.Screen.newLine();
+                Brain.Screen.print("put in cards and");
+                Brain.Screen.newLine();
+                Brain.Screen.print("press check to continue.");
+                while(!Brain.buttonCheck.pressing())
+                {}
+                while(Brain.buttonCheck.pressing())
+                {}
+                cyanCheck = getCardColor();
+            }
 		  // runs colorSort()
 		  wait(1, seconds);
 		  colorSort();
