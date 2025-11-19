@@ -1,0 +1,105 @@
+Emergency Stop Implementation - Global Flag System
+===================================================
+
+The TouchLED sensor has been implemented as a GLOBAL EMERGENCY STOP mechanism throughout v10.cpp.
+When pressed, it will IMMEDIATELY halt ALL robot operations across ALL nested loops.
+
+HOW IT WORKS:
+- A global flag 'emergencyStopActivated' is set to true when TouchLED is pressed
+- The checkEmergencyStop() function checks the sensor and sets the flag
+- When activated, ALL motors stop immediately (brake mode)
+- The TouchLED changes to ORANGE to provide visual feedback
+- The flag is checked in every loop, so pressing ONCE stops EVERYTHING
+- The flag resets at the start of each main operation cycle
+
+Locations where checkEmergencyStop() is called:
+
+1. CORE EMERGENCY STOP SYSTEM:
+   - Line 14: Global flag variable 'emergencyStopActivated'
+   - Line 16-28: checkEmergencyStop() function
+     * Checks TouchLED sensor
+     * Sets global flag to true if pressed
+     * Immediately stops all motors (brake mode)
+     * Changes TouchLED to orange for visual feedback
+     * Returns the current state of emergencyStopActivated
+
+2. MOTION CONTROL FUNCTIONS:
+   - Line 95: rotateToHeadingPID() - Main PID rotation while loop
+     Stops rotation immediately when emergency stop is pressed
+
+   - Line 130-131: dispenseOneCard() - Card dispensing while loop
+     Stops card dispensing mechanism when emergency stop is pressed
+
+3. USER INTERFACE FUNCTIONS:
+   - Line 237-240: selectMode() - Button wait loop (waits for user to press a button)
+     Allows emergency stop to exit the mode selection screen
+
+   - Line 263: selectMode() - Button release wait loop
+     Exits button debounce loop on emergency stop
+
+   - Line 303-306: getNumPlayers() - Button wait loop
+     Allows emergency stop to exit the player selection screen
+
+   - Line 329: getNumPlayers() - Button release wait loop
+     Exits button debounce loop on emergency stop
+
+   - Line 357-360: getCardsPer() - Button wait loop
+     Allows emergency stop to exit the cards-per-player selection screen
+
+   - Line 389: getCardsPer() - Button release wait loop
+     Exits button debounce loop on emergency stop
+
+   - Line 432-435: askContinue() - Button wait loop
+     Allows emergency stop to exit the continue/exit prompt
+
+   - Line 455: askContinue() - Button release wait loop
+     Exits button debounce loop on emergency stop
+
+4. MAIN OPERATIONS:
+   - Line 163: shuffleDeal() - Main shuffle dealing while loop
+     Stops shuffle dealing process when emergency stop is pressed
+
+   - Line 521: colorSort() - Card sorting for loop
+     Stops color sorting process when emergency stop is pressed
+
+   - Line 640: main() MODE_DEAL - Deal cycle while loop
+     Stops the dealing cycle loop when emergency stop is pressed
+
+   - Line 650: main() MODE_DEAL - Nested for loop (cards per player)
+     Stops iterating through cards when emergency stop is pressed
+
+   - Line 652: main() MODE_DEAL - Nested for loop (players)
+     Stops iterating through players when emergency stop is pressed
+
+   - Line 682: main() MODE_SHUFFLE - Shuffle cycle while loop
+     Stops the shuffle dealing cycle loop when emergency stop is pressed
+
+5. MAIN LOOP RESET AND HANDLING:
+   - Line 604-605: Reset flag at start of each main cycle
+   - Line 608-627: Check for emergency stop and handle reset
+     * Displays "EMERGENCY STOP!" message
+     * Waits for button release
+     * Resets flag and returns to mode selection
+   - Line 765-777: Post-operation emergency stop check
+     * Displays halt message if emergency stop was triggered
+     * Skips normal delay if stopped
+
+TOTAL: 16 active check locations + reset/handling code
+
+KEY ADVANTAGES OF THIS IMPLEMENTATION:
+1. ONE BUTTON PRESS stops EVERYTHING - no need to press multiple times
+2. Global flag propagates through ALL nested loops instantly
+3. All motors stop immediately in brake mode (safe stop)
+4. Visual feedback via orange LED
+5. Graceful recovery - user can release button and continue
+6. Flag automatically resets for next operation cycle
+
+USAGE:
+To trigger the emergency stop, simply press the TouchLED sensor at PORT5 ONCE.
+The robot will:
+  1. Immediately stop ALL motors (left, right, dispense)
+  2. Change TouchLED to ORANGE
+  3. Exit ALL active loops (even deeply nested ones)
+  4. Display "EMERGENCY STOP!" message
+  5. Wait for you to release the button
+  6. Reset and return to mode selection

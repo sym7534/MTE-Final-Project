@@ -7,7 +7,24 @@ inertial BrainInertial = inertial();
 motor MotorLeft      = motor(PORT3,  false);
 motor MotorRight     = motor(PORT6,  true);
 motor MotorDispense  = motor(PORT1,  false);
-optical OpticalSensor = optical(PORT4);  
+optical OpticalSensor = optical(PORT4);
+touchled TouchLED = touchled(PORT5);
+
+// GLOBAL VAR FOR EMERGENCY STOP
+bool emergencyStopActivated = false;
+
+bool checkEmergencyStop()
+{
+  if (TouchLED.pressing())
+  {
+    emergencyStopActivated = true;
+    MotorLeft.stop(brake);
+    MotorRight.stop(brake);
+    MotorDispense.stop(brake);
+    TouchLED.setColor(colorType::red);  // Visual feedback
+  }
+  return emergencyStopActivated;
+}
 
 void initializeRandomSeed()
 {
@@ -34,96 +51,74 @@ void configureAllSensors()
   MotorRight.setPosition(0, turns);
   MotorDispense.setPosition(0, deg);
   OpticalSensor.setLight(ledState::on);
+  TouchLED.setColor(colorType::green);
+  TouchLED.setBrightness(100);
 }
 
-// ---------------------- pid rotation functions
-double clamp(double power, double minPower, double maxPower)
+static inline double clampAbs(double v, double mn, double mx)
 {
-  double temp = fabs(power);
-  if (temp < minPower) temp = minPower; // corrects if the current power is
-  if (temp > maxPower) temp = maxPower; // outside of our limits
-  return copysign(temp, power);
+  double a = fabs(v);
+  if (a < mn) a = mn;
+  if (a > mx) a = mx;
+  return copysign(a, v);
 }
 
-double convertAngle(double angle)
+static inline double normDeg(double a)
 {
-  while (angle > 180.0) angle -= 360.0;
-  while (angle < -180.0) angle += 360.0; // makes a within -180 to 180 
-  return angle;
+  while (a > 180.0) a -= 360.0;
+  while (a < -180.0) a += 360.0;
+  return a;
 }
 
-bool rotateToHeadingPID(double target,
-                        double kp=1.2, double ki=0.0, double kd=0.15,
-                        int timeout=2000, double tolerance =2.0)
+// ---------------------- pid rotation function 
+bool rotateToHeadingPID(double targetDeg,
+                        double kp=1.2, double ki=0.0, double kd=0.12,
+                        int timeoutMs=2000, double tolDeg=2.0)
 {
-  const double maxPower = 70.0;        // max motor power
-  const double minPower = 7.0;         // min motor power
-  const double integralLimit = 20.0;   // minimum degrees away from target
-                                       // to start calculating integral
+  const double maxPct = 70.0;
+  const double minPct = 8.0;
+  const double iLimit = 25.0;   // integral guard (deg)
+  const int    loopDt = 15;     // ms
 
-  const int loopTime = 15;             // update frequency (in ms)
-
+  // set once; keep while-loop empty of spin() calls
   MotorLeft.setStopping(brake);
   MotorRight.setStopping(brake);
   MotorLeft.spin(forward);
   MotorRight.spin(forward);
 
-  timer t; // initializes timer t
-  
-  double error = convertAngle(target - BrainInertial.heading(degrees));
-  // converts target angle to a lowest angle to target
-  // IN DEGREES
-  // IN DEGREES
+  timer t;
+  double err      = normDeg(targetDeg - BrainInertial.heading(degrees));
+  double prevErr  = err;
+  double integral = 0.0;
 
-  double prevError  = error;  // for derivative calc
-  double integral = 0.0;      // accumulated error over time (integral)
-
-  // continue until within tolerance or timeouts
-  while (fabs(error) > tolerance && t.time(msec) < timeout)
+  while (fabs(err) > tolDeg && t.time(msec) < timeoutMs && !checkEmergencyStop())
   {
-    // INTEGRAL: RIEMANN'S SUM OF ERROR * TIME ELAPSED
-    if (fabs(error) < integralLimit)
-    // only start calculating integral as it approaches the limit
-    {
-        integral += error * (loopTime/1000.0);
-    }
-    else
-    {
-        integral = 0.0; // Reset integral when far from target
-    }
+    if (fabs(err) < iLimit) integral += err * (loopDt/1000.0); else integral = 0.0;
+    double derivative = (err - prevErr) / (loopDt/1000.0);
 
-    // DERIVATIVE: RATE OF CHANGE OF ERROR
-    double derivative = (error - prevError) / (loopTime/1000.0);
+    // control effort (u>0 => need CW; u<0 => need CCW)
+    double u = kp*err + ki*integral + kd*derivative;
 
-    // PID CALCULATION
-    // pos u = cw rotation, neg u = ccw rotation
-    double u = kp*error + ki*integral + kd*derivative;
+    // convert to tank turn velocities: left = +u, right = -u
+    double leftPct  = clampAbs( u, minPct, maxPct);
+    double rightPct = clampAbs(-u, minPct, maxPct);
 
-    // uses clamp() to make sure u is within min max values for power
-    double leftPower  = clamp( u, minPower, maxPower);
-    double rightPower = clamp(-u, minPower, maxPower);
+    MotorLeft.setVelocity(leftPct,  percent);
+    MotorRight.setVelocity(rightPct, percent);
 
-    MotorLeft.setVelocity(leftPower,  percent);
-    MotorRight.setVelocity(rightPower, percent);
-
-    wait(loopTime, msec); // waits until next loop of while loop, based on
-    //                     set value for loopDt
-
-    prevError = error; // stores current error for next derivative calculation
-    error = convertAngle(target - BrainInertial.heading(degrees)); 
-    // get new error
+    wait(loopDt, msec);
+    prevErr = err;
+    err = normDeg(targetDeg - BrainInertial.heading(degrees));
   }
 
   MotorLeft.stop();
   MotorRight.stop();
-
-  // returns false if it failed to reach the target within timeout time
-  return fabs(error) <= tolerance;
+  return fabs(err) <= tolDeg;
 }
 
 // ---------------------- dispense one card
 const double DEG_PER_CARD = 240.0;    // max degrees of rotation per card
-const int    MAX_MS = 240;            // max time for motor to run
+const int    MAX_MS = 240;            // max time
 void dispenseOneCard()
 {
   double startDispense = MotorDispense.position(deg);
@@ -132,7 +127,7 @@ void dispenseOneCard()
 
   timer t;
   while ((MotorDispense.position(deg) - startDispense) < DEG_PER_CARD
-         && t.time(msec) < MAX_MS) 
+         && t.time(msec) < MAX_MS && !checkEmergencyStop())
   {}
 
   MotorDispense.stop(brake);
@@ -181,7 +176,7 @@ void shuffleDeal(int numSeats, int totalCardsPerSeat)
     cardsDealt[i] = 0;
   }
 
-  while (!allDealt(cardsDealt,numSeats,totalCardsPerSeat)) 
+  while (!allDealt(cardsDealt,numSeats,totalCardsPerSeat) && !checkEmergencyStop())
   {
     int index = rand() % numSeats;
 
@@ -248,16 +243,17 @@ int selectMode() {
     }
     Brain.Screen.newLine();
     Brain.Screen.print("EXIT");
-    if (i == MODE_EXIT) 
+    if (i == MODE_EXIT)
     {
       Brain.Screen.print(" ***");
     }
     Brain.Screen.newLine();
 
     // waits until any button is pressed
-    while(!Brain.buttonLeft.pressing() 
-          && !Brain.buttonRight.pressing() 
-          && !Brain.buttonCheck.pressing()) 
+    while(!Brain.buttonLeft.pressing()
+          && !Brain.buttonRight.pressing()
+          && !Brain.buttonCheck.pressing()
+          && !checkEmergencyStop())
     {}
 
     Brain.Screen.clearScreen();
@@ -281,7 +277,7 @@ int selectMode() {
     }
 
     // waits until buttons are no longer being pressed
-    while (Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) 
+    while ((Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) && !checkEmergencyStop())
     {}
 
     // overflow conditions
@@ -320,9 +316,10 @@ int getNumPlayers(int max)
     Brain.Screen.print("%d",i);
 
     // waits until any button is pressed
-    while(!Brain.buttonLeft.pressing() 
-          && !Brain.buttonRight.pressing() 
-          && !Brain.buttonCheck.pressing()) 
+    while(!Brain.buttonLeft.pressing()
+          && !Brain.buttonRight.pressing()
+          && !Brain.buttonCheck.pressing()
+          && !checkEmergencyStop())
     {}
 
     Brain.Screen.clearScreen();
@@ -347,7 +344,7 @@ int getNumPlayers(int max)
     }
 
     // waits until buttons are released before proceeding
-    while (Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) 
+    while ((Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) && !checkEmergencyStop())
     {}
 
   }
@@ -375,7 +372,8 @@ int getCardsPer(int max)
     // waits until any button is pressed
     while(!Brain.buttonLeft.pressing()
           && !Brain.buttonRight.pressing()
-          && !Brain.buttonCheck.pressing()) 
+          && !Brain.buttonCheck.pressing()
+          && !checkEmergencyStop())
     {}
 
     Brain.Screen.clearScreen();
@@ -407,7 +405,7 @@ int getCardsPer(int max)
     }
 
     // waits until buttons are released before proceeding
-    while (Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) 
+    while ((Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) && !checkEmergencyStop())
     {}
 
   }
@@ -449,7 +447,8 @@ bool askContinue()
 
 		while(!Brain.buttonLeft.pressing()
 		      && !Brain.buttonRight.pressing()
-		      && !Brain.buttonCheck.pressing()) 
+		      && !Brain.buttonCheck.pressing()
+		      && !checkEmergencyStop())
     {}
 
 		Brain.Screen.clearScreen(); // reloads screen when button pressed
@@ -473,7 +472,7 @@ bool askContinue()
     {
 			selection++;
 		}
-		while (Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) 
+		while ((Brain.buttonLeft.pressing() || Brain.buttonRight.pressing()) && !checkEmergencyStop())
     {}
 
 		// overflow conditions (wrap around)
@@ -539,7 +538,7 @@ void colorSort()
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("Sorting cards by color");
 
-  for (int i = 0; i < 52; i++) 
+  for (int i = 0; i < 52 && !checkEmergencyStop(); i++)
   {
     int colorPile = 0;
     colorPile = getCardColor();
@@ -600,10 +599,18 @@ int main()
   int cardsPer = 0;
   while(mode != MODE_EXIT)
   {
+    emergencyStopActivated = false;
+    TouchLED.setColor(colorType::green);
+
+    if (checkEmergencyStop())
+    {
+      break;
+    }
+
     // displaying selected mode/asking for values
     Brain.Screen.clearScreen();
-	  Brain.Screen.setCursor(1,1);
-	  if (mode == MODE_DEAL)
+	Brain.Screen.setCursor(1,1);
+	if (mode == MODE_DEAL)
     {
 		  Brain.Screen.print("deal selected");
       wait(1,seconds);
@@ -645,9 +652,9 @@ int main()
 	  }
     else if (mode == MODE_SORT)
     {
-		  Brain.Screen.print("sort selected");
-      wait(1, seconds);
-	  }
+        Brain.Screen.print("sort selected");
+        wait(1, seconds);
+	}
 
 
     // looping code
@@ -658,7 +665,7 @@ int main()
 		  int cycle = 0;
 
 		  // infinite loop for dealing cycles
-		  while (keepDealing)
+		  while (keepDealing && !checkEmergencyStop())
       {
 			  cycle++;
 
@@ -668,9 +675,9 @@ int main()
 			  Brain.Screen.setCursor(1,1);
 			  Brain.Screen.print("dealing cards (cycle %d)", cycle);
 
-			  for (int i = 0; i < cardsPer; i++)
+			  for (int i = 0; i < cardsPer && !TouchLED.pressing(); i++)
         {
-				  for (int j = 0; j < players; j++)
+				  for (int j = 0; j < players && !TouchLED.pressing(); j++)
           {
 					  double heading = 360.0 / players * j;
 					  // "divides" 360 degrees into angles based on how many players, then multiplies by j for the current player
@@ -700,7 +707,7 @@ int main()
 		  bool keepDealing = true;
 		  int cycle = 0;
 
-		  while (keepDealing)
+		  while (keepDealing && !checkEmergencyStop())
       {
 			  cycle++;
 
@@ -735,8 +742,21 @@ int main()
 		  colorSort();
 	  }
 
-	  wait(5,seconds);
-	  mode = selectMode();
+    
+    // if emergency stop was pressed
+    if (emergencyStopActivated)
+    {
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("emergency stop activated");
+      wait(1, seconds);
+    }
+    else
+    {
+	    wait(3,seconds);
+    }
+
+	mode = selectMode();
   }
 
   Brain.Screen.clearScreen();

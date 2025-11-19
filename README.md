@@ -5,3 +5,7 @@ Authors:
     Josef Gavronskiy
     Raiwin Podaima
     Sobhan Zare 
+
+
+v10 is the buggy emergency stop version - do NOT USE
+

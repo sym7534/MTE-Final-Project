@@ -8,6 +8,7 @@ motor MotorLeft      = motor(PORT3,  false);
 motor MotorRight     = motor(PORT6,  true);
 motor MotorDispense  = motor(PORT1,  false);
 optical OpticalSensor = optical(PORT4);  
+touchled TouchLED = touchled(PORT5);
 
 void initializeRandomSeed()
 {
@@ -52,9 +53,7 @@ double convertAngle(double angle)
   return angle;
 }
 
-bool rotateToHeadingPID(double target,
-                        double kp=1.2, double ki=0.0, double kd=0.15,
-                        int timeout=2000, double tolerance =2.0)
+bool rotateToHeadingPID(double target)
 {
   const double maxPower = 70.0;        // max motor power
   const double minPower = 7.0;         // min motor power
@@ -62,6 +61,13 @@ bool rotateToHeadingPID(double target,
                                        // to start calculating integral
 
   const int loopTime = 15;             // update frequency (in ms)
+
+  double kp = 1.25;
+  double ki = 0.02;
+  double kd = 0.15;
+  int timeout = 2000;
+  double tolerance = 1.0;
+  // old values: 1.25, 0.0, 0.12, 2000, 2.0
 
   MotorLeft.setStopping(brake);
   MotorRight.setStopping(brake);
@@ -142,7 +148,7 @@ void dispenseOneCard()
   MotorDispense.setVelocity(90, percent);  // same speed as forward
   MotorDispense.spin(reverse);             // spin backwards
 
-  wait(dispenseTime, msec);  // run backwards for the same time
+  wait(dispenseTime + 200, msec);  // run backwards for the same time + extra
 
   MotorDispense.stop(brake);
 }
@@ -151,7 +157,7 @@ void dispenseOneCard()
 // + dispensing function()
 void dealCardsToPosition(double heading, int numCards) 
 {
-  rotateToHeadingPID(heading, 1.25, 0.0, 0.12, 2000, 2.0);
+  rotateToHeadingPID(heading);
   for (int i = 0; i < numCards; i++) 
   {
     dispenseOneCard();
@@ -401,7 +407,7 @@ int getCardsPer(int max)
     {
         i = max;
     }
-    else if (i >= max && Brain.buttonRight.pressing())
+    else if (i > max && Brain.buttonRight.pressing())
     {
         i = 1;
     }
@@ -413,10 +419,64 @@ int getCardsPer(int max)
   }
 }
 
+void dispenseIndividualCardsUI(int numplayers) {
+  double currentHeading = 0;
+
+  rotateToHeadingPID(currentHeading);
+
+  
+  bool running = true;
+  while (running) {
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("<> to rotate");
+    Brain.Screen.newLine();
+    Brain.Screen.print("check to dispense");
+    Brain.Screen.newLine();
+    Brain.Screen.print("use touchled to exit");
+    Brain.Screen.newLine();
+
+    TouchLED.setColor(color::blue);
+
+    while (!Brain.buttonRight.pressing() &&
+           !Brain.buttonLeft.pressing() &&
+           !Brain.buttonCheck.pressing() &&
+           !TouchLED.pressing()) 
+    {}
+    
+    if (TouchLED.pressing()) {
+      while (TouchLED.pressing()) {}
+      running = false;
+    }
+    else if (Brain.buttonRight.pressing()) 
+    { 
+      while (Brain.buttonRight.pressing()) {}
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("turning right");
+      rotateToHeadingPID(currentHeading+360.0/numplayers);
+      currentHeading += 360.0/numplayers;
+    } else if (Brain.buttonLeft.pressing()) 
+    {
+      while (Brain.buttonLeft.pressing()) {}
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("turning right");
+      rotateToHeadingPID(currentHeading-360.0/numplayers);
+      currentHeading -= 360.0/numplayers;
+    } else if (Brain.buttonCheck.pressing())
+    {
+      while (Brain.buttonCheck.pressing()) {}
+      dispenseOneCard();
+    }
+  }
+
+  Brain.Screen.clearScreen();
+}
 
 // prompts user with whether to continue another deal cycle
 // used for MODE_DEAL and MODE_SHUFFLE
-bool askContinue() 
+bool askContinue(int numplayers) 
 {
 	wait(1, seconds);
 	Brain.Screen.clearScreen();
@@ -429,7 +489,8 @@ bool askContinue()
   bool running = true;
 	while (running) // runs until user confirms
   {
-		Brain.Screen.setCursor(1,1);
+		Brain.Screen.clearScreen();
+        Brain.Screen.setCursor(1,1);
 		Brain.Screen.print("Continue?");
 		Brain.Screen.newLine();
 
@@ -442,6 +503,12 @@ bool askContinue()
 		Brain.Screen.newLine();
 		Brain.Screen.print("NO");
 		if (selection == 1)
+    {
+			Brain.Screen.print(" ***");
+    }
+		Brain.Screen.newLine();
+    Brain.Screen.print("RE-DISPENSE");
+		if (selection == 2)
     {
 			Brain.Screen.print(" ***");
     }
@@ -459,7 +526,13 @@ bool askContinue()
     {
 			while (Brain.buttonCheck.pressing()) 
       {}
-			return (selection == 0); 
+      if (selection != 2) {
+        return (selection == 0); 
+      }
+      else {
+        // run dispense individual cards ui
+        dispenseIndividualCardsUI(numplayers);
+      }
       // if selection is 0 (yes), true - if not 0, false
 		}
 
@@ -479,9 +552,9 @@ bool askContinue()
 		// overflow conditions (wrap around)
 		if (selection == -1) 
     {
-			selection = 1;
+			selection = 2;
 		} 
-    else if (selection == 2) 
+    else if (selection == 3) 
     {
 			selection = 0;
 		}
@@ -493,80 +566,88 @@ bool askContinue()
 // get current color of card in tray
 int getCardColor() 
 {
-  // red
-  if (OpticalSensor.color() == colorType::red || 
-      OpticalSensor.color() == colorType::red_violet) 
+  double hue = OpticalSensor.hue();
+  // hearts red
+  if (hue >= 0 && hue < 20) 
   {
     return 0;
   }
 
-  // blue
-  else if (OpticalSensor.color() == colorType::blue || 
-           OpticalSensor.color() == colorType::cyan) 
+  // spades orange/ brown
+  else if (hue >= 20 && hue < 45) 
   {
     return 1;
   }
 
-  // green
-  else if (OpticalSensor.color() == colorType::green ||
-           OpticalSensor.color() == colorType::blue_green ||
-           OpticalSensor.color() == colorType::yellow_green) 
+  // diamonds blue purple pink
+  else if (hue >= 215 && hue < 360) 
   {
     return 2;
   }
 
-  // yellow
-  else if (OpticalSensor.color() == colorType::yellow)
+  // clubs yellow and green
+  else if (hue >= 45 && hue <= 150)
   {
     return 3;
   }
 
-  // if some other color is seen
-  else
+  // if cyan is seen
+  else if (hue >= 180 && hue < 205)
   {
-    return 5;
+    return 4;
+  }
+
+  else 
+  {
+    return 5; // incase something weird happens
   }
 }
 
 // sort cards into 4 suits
 void colorSort() 
 {
-  const int piles = 5;
+  const int piles = 6;
   // int cardsPerPile[4] = { 0, 0, 0, 0 };
-  int cardsPerPile[piles] = {0, 0, 0, 0, 0};
+  int cardsPerPile[piles] = {0, 0, 0, 0, 0,0};
 
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("Sorting cards by color");
 
-  for (int i = 0; i < 52; i++) 
+  int colorPile = 0;
+  // 4 is cyan
+  while (colorPile != 4)
+  //for (int i = 0; i < 52; i++) 
   {
-    int colorPile = 0;
     colorPile = getCardColor();
 
     if (colorPile == 0) // red
     {
-      rotateToHeadingPID(0, 1.25, 0.0, 0.12, 2000, 2.0);
+      rotateToHeadingPID(0);
       wait(200, msec);
     }
     else if (colorPile == 1) // blue
     {
-      rotateToHeadingPID(90, 1.25, 0.0, 0.12, 2000, 2.0);
+      rotateToHeadingPID(90);
       wait(200, msec);
     }
     else if (colorPile == 2) // green
     {
-      rotateToHeadingPID(180, 1.25, 0.0, 0.12, 2000, 2.0);
+      rotateToHeadingPID(180);
       wait(200, msec);
     }
     else if (colorPile == 3) // yellow
     {
-      rotateToHeadingPID(270, 1.25, 0.0, 0.12, 2000, 2.0);
+      rotateToHeadingPID(270);
       wait(200, msec);
-    }
-    else if (colorPile == 999)
+    } 
+    else if (colorPile == 5)
     {
-      wait(200, msec);
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("unrecognized color %f", OpticalSensor.hue());
+      wait(5000, msec);
+      
     }
 
     dispenseOneCard();
@@ -581,8 +662,14 @@ void colorSort()
     Brain.Screen.setCursor(i + 1, 1);
     Brain.Screen.print("pile %d has %d cards", i, cardsPerPile[i]);
   }
-  Brain.Screen.setCursor(6, 1);
-  Brain.Screen.print("missing: %d", cardsPerPile[4]);
+  
+  wait(1,seconds);
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1, 1);
+  Brain.Screen.print("cyan: %d", cardsPerPile[4]);
+  Brain.Screen.setCursor(2, 1);
+  Brain.Screen.print("NA: %d", cardsPerPile[5]);
+
 }
 
 // ---------------------- main: random shuffle dealing ----------------------
@@ -592,6 +679,14 @@ int main()
 	configureAllSensors();
 
 	srand(Brain.Timer.time(msec));
+
+  // while (true) {
+  //   wait(1,seconds);
+
+  //   Brain.Screen.clearScreen();
+  //   Brain.Screen.setCursor(1,1);
+  //   Brain.Screen.print("hue: %.2f", OpticalSensor.hue());
+  // }
 
 	// gets deal mode
 	int mode = selectMode();
@@ -685,7 +780,7 @@ int main()
 			  wait(1, seconds);
 
 			  // ask user if they want another cycle
-			  keepDealing = askContinue();
+			  keepDealing = askContinue(players);
         
         wait(1, seconds);
 		  } 
@@ -719,7 +814,7 @@ int main()
 			  wait(1, seconds);
 
 			  // ask user if they want another cycle
-			  keepDealing = askContinue();
+			  keepDealing = askContinue(players);
 
         wait(1, seconds);
 		  }
@@ -738,7 +833,10 @@ int main()
 	  wait(5,seconds);
 	  mode = selectMode();
   }
-
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1,1);
+  Brain.Screen.print("returning to start position");
+  rotateToHeadingPID(0);
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1,1);
   Brain.Screen.print("exiting.");

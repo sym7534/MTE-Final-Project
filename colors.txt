@@ -1,0 +1,4 @@
+hearts is red
+spades is orange.. or brown.. 
+diamonds is blue/purple/pink
+clubs is yellow/green

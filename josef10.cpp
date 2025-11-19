@@ -8,6 +8,7 @@ motor MotorLeft      = motor(PORT3,  false);
 motor MotorRight     = motor(PORT6,  true);
 motor MotorDispense  = motor(PORT1,  false);
 optical OpticalSensor = optical(PORT4);  
+touchled TouchLED = touchled(PORT5);
 
 void initializeRandomSeed()
 {
@@ -33,97 +34,72 @@ void configureAllSensors()
   MotorLeft.setPosition(0, turns);
   MotorRight.setPosition(0, turns);
   MotorDispense.setPosition(0, deg);
-  OpticalSensor.setLight(ledState::on);
 }
 
-// ---------------------- pid rotation functions
-double clamp(double power, double minPower, double maxPower)
+static inline double clampAbs(double v, double mn, double mx)
 {
-  double temp = fabs(power);
-  if (temp < minPower) temp = minPower; // corrects if the current power is
-  if (temp > maxPower) temp = maxPower; // outside of our limits
-  return copysign(temp, power);
+  double a = fabs(v);
+  if (a < mn) a = mn;
+  if (a > mx) a = mx;
+  return copysign(a, v);
 }
 
-double convertAngle(double angle)
+static inline double normDeg(double a)
 {
-  while (angle > 180.0) angle -= 360.0;
-  while (angle < -180.0) angle += 360.0; // makes a within -180 to 180 
-  return angle;
+  while (a > 180.0) a -= 360.0;
+  while (a < -180.0) a += 360.0;
+  return a;
 }
 
-bool rotateToHeadingPID(double target,
-                        double kp=1.2, double ki=0.0, double kd=0.15,
-                        int timeout=2000, double tolerance =2.0)
+// ---------------------- pid rotation function 
+bool rotateToHeadingPID(double targetDeg,
+                        double kp=1.2, double ki=0.0, double kd=0.12,
+                        int timeoutMs=2000, double tolDeg=2.0)
 {
-  const double maxPower = 70.0;        // max motor power
-  const double minPower = 7.0;         // min motor power
-  const double integralLimit = 20.0;   // minimum degrees away from target
-                                       // to start calculating integral
+  const double maxPct = 70.0;
+  const double minPct = 8.0;
+  const double iLimit = 25.0;   // integral guard (deg)
+  const int    loopDt = 15;     // ms
 
-  const int loopTime = 15;             // update frequency (in ms)
-
+  // set once; keep while-loop empty of spin() calls
   MotorLeft.setStopping(brake);
   MotorRight.setStopping(brake);
   MotorLeft.spin(forward);
   MotorRight.spin(forward);
 
-  timer t; // initializes timer t
-  
-  double error = convertAngle(target - BrainInertial.heading(degrees));
-  // converts target angle to a lowest angle to target
-  // IN DEGREES
-  // IN DEGREES
+  timer t;
+  double err      = normDeg(targetDeg - BrainInertial.heading(degrees));
+  double prevErr  = err;
+  double integral = 0.0;
 
-  double prevError  = error;  // for derivative calc
-  double integral = 0.0;      // accumulated error over time (integral)
-
-  // continue until within tolerance or timeouts
-  while (fabs(error) > tolerance && t.time(msec) < timeout)
+  while (fabs(err) > tolDeg && t.time(msec) < timeoutMs) 
   {
-    // INTEGRAL: RIEMANN'S SUM OF ERROR * TIME ELAPSED
-    if (fabs(error) < integralLimit)
-    // only start calculating integral as it approaches the limit
-    {
-        integral += error * (loopTime/1000.0);
-    }
-    else
-    {
-        integral = 0.0; // Reset integral when far from target
-    }
+    if (fabs(err) < iLimit) integral += err * (loopDt/1000.0); else integral = 0.0;
+    double derivative = (err - prevErr) / (loopDt/1000.0);
 
-    // DERIVATIVE: RATE OF CHANGE OF ERROR
-    double derivative = (error - prevError) / (loopTime/1000.0);
+    // control effort (u>0 => need CW; u<0 => need CCW)
+    double u = kp*err + ki*integral + kd*derivative;
 
-    // PID CALCULATION
-    // pos u = cw rotation, neg u = ccw rotation
-    double u = kp*error + ki*integral + kd*derivative;
+    // convert to tank turn velocities: left = +u, right = -u
+    double leftPct  = clampAbs( u, minPct, maxPct);
+    double rightPct = clampAbs(-u, minPct, maxPct);
 
-    // uses clamp() to make sure u is within min max values for power
-    double leftPower  = clamp( u, minPower, maxPower);
-    double rightPower = clamp(-u, minPower, maxPower);
+    MotorLeft.setVelocity(leftPct,  percent);
+    MotorRight.setVelocity(rightPct, percent);
 
-    MotorLeft.setVelocity(leftPower,  percent);
-    MotorRight.setVelocity(rightPower, percent);
-
-    wait(loopTime, msec); // waits until next loop of while loop, based on
-    //                     set value for loopDt
-
-    prevError = error; // stores current error for next derivative calculation
-    error = convertAngle(target - BrainInertial.heading(degrees)); 
-    // get new error
+    wait(loopDt, msec);
+    prevErr = err;
+    err = normDeg(targetDeg - BrainInertial.heading(degrees));
   }
 
   MotorLeft.stop();
   MotorRight.stop();
-
-  // returns false if it failed to reach the target within timeout time
-  return fabs(error) <= tolerance;
+  return fabs(err) <= tolDeg;
 }
 
 // ---------------------- dispense one card
 const double DEG_PER_CARD = 240.0;    // max degrees of rotation per card
-const int    MAX_MS = 240;            // max time for motor to run
+const int    MAX_MS = 240;            // max time
 void dispenseOneCard()
 {
   double startDispense = MotorDispense.position(deg);
@@ -401,7 +377,7 @@ int getCardsPer(int max)
     {
         i = max;
     }
-    else if (i >= max && Brain.buttonRight.pressing())
+    else if (i > max && Brain.buttonRight.pressing())
     {
         i = 1;
     }
@@ -413,10 +389,82 @@ int getCardsPer(int max)
   }
 }
 
+void dispenseIndividualCardsUI(int numplayers) {
+  double currentHeading = 0;
+
+  rotateToHeadingPID(currentHeading, 1.25, 0.0, 0.12, 2000, 2.0);
+
+  
+
+  while (true) {
+    Brain.Screen.clearScreen();
+    Brain.Screen.setCursor(1,1);
+    Brain.Screen.print("<> to rotate");
+    Brain.Screen.newLine();
+    Brain.Screen.print("check to dispense");
+    Brain.Screen.newLine();
+    Brain.Screen.print("use touchled to exit");
+    Brain.Screen.newLine();
+
+    TouchLED.setColor(color::blue);
+
+    while (!Brain.buttonRight.pressing() &&
+           !Brain.buttonLeft.pressing() &&
+           !Brain.buttonCheck.pressing() &&
+           !TouchLED.pressing()) 
+    {}
+    
+    if (TouchLED.pressing()) {
+      while (TouchLED.pressing()) {}
+      return;
+    }
+
+    if (Brain.buttonRight.pressing()) 
+    { 
+      while (Brain.buttonRight.pressing()) {}
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("turning right");
+      rotateToHeadingPID(currentHeading+360.0/numplayers);
+      currentHeading += 360.0/numplayers;
+    } else if (Brain.buttonLeft.pressing()) 
+    {
+      while (Brain.buttonLeft.pressing()) {}
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("turning right");
+      rotateToHeadingPID(currentHeading-360.0/numplayers);
+      currentHeading -= 360.0/numplayers;
+    } else if (Brain.buttonCheck.pressing())
+    {
+      while (Brain.buttonCheck.pressing()) {}
+      dispenseOneCard();
+    }
+    
+
+
+    // check if right arrow is pressed if so rotate to next heading
+    // check if left arrow is pressed if so rotate
+
+    // check if checkmark is pressed if so dispense one card
+  }
+
+  Brain.Screen.clearScreen();
+
+
+
+  // for (int i = 0; i < numCards; i++) 
+  // {
+
+  //   dispenseOneCard();
+  //   wait(80, msec);
+  // }
+
+}
 
 // prompts user with whether to continue another deal cycle
 // used for MODE_DEAL and MODE_SHUFFLE
-bool askContinue() 
+bool askContinue(int numplayers) 
 {
 	wait(1, seconds);
 	Brain.Screen.clearScreen();
@@ -446,6 +494,12 @@ bool askContinue()
 			Brain.Screen.print(" ***");
     }
 		Brain.Screen.newLine();
+    Brain.Screen.print("RE-DISPENSE");
+		if (selection == 2)
+    {
+			Brain.Screen.print(" ***");
+    }
+		Brain.Screen.newLine();
 
 		while(!Brain.buttonLeft.pressing()
 		      && !Brain.buttonRight.pressing()
@@ -459,7 +513,13 @@ bool askContinue()
     {
 			while (Brain.buttonCheck.pressing()) 
       {}
-			return (selection == 0); 
+      if (selection != 2) {
+        return (selection == 0); 
+      }
+      else {
+        // run dispense individual cards ui
+        dispenseIndividualCardsUI(numplayers);
+      }
       // if selection is 0 (yes), true - if not 0, false
 		}
 
@@ -479,9 +539,9 @@ bool askContinue()
 		// overflow conditions (wrap around)
 		if (selection == -1) 
     {
-			selection = 1;
+			selection = 2;
 		} 
-    else if (selection == 2) 
+    else if (selection == 3) 
     {
 			selection = 0;
 		}
@@ -493,55 +553,59 @@ bool askContinue()
 // get current color of card in tray
 int getCardColor() 
 {
-  // red
-  if (OpticalSensor.color() == colorType::red || 
-      OpticalSensor.color() == colorType::red_violet) 
+  double hue = OpticalSensor.hue();
+  // hearts red
+  if (hue >= 0 && hue < 20) 
   {
     return 0;
   }
 
-  // blue
-  else if (OpticalSensor.color() == colorType::blue || 
-           OpticalSensor.color() == colorType::cyan) 
+  // spades orange/ brown
+  else if (hue >= 20 && hue < 45) 
   {
     return 1;
   }
 
-  // green
-  else if (OpticalSensor.color() == colorType::green ||
-           OpticalSensor.color() == colorType::blue_green ||
-           OpticalSensor.color() == colorType::yellow_green) 
+  // diamonds blue purple pink
+  else if (hue >= 215 && hue < 360) 
   {
     return 2;
   }
 
-  // yellow
-  else if (OpticalSensor.color() == colorType::yellow)
+  // clubs yellow and green
+  else if (hue >= 45 && hue <= 150)
   {
     return 3;
   }
 
-  // if some other color is seen
-  else
+  // if cyan is seen
+  else if (hue >= 180 && hue < 205)
   {
-    return 5;
+    return 4;
+  }
+
+  else 
+  {
+    return 5; // incase something weird happens
   }
 }
 
 // sort cards into 4 suits
 void colorSort() 
 {
-  const int piles = 5;
+  const int piles = 6;
   // int cardsPerPile[4] = { 0, 0, 0, 0 };
-  int cardsPerPile[piles] = {0, 0, 0, 0, 0};
+  int cardsPerPile[piles] = {0, 0, 0, 0, 0,0};
 
   Brain.Screen.clearScreen();
   Brain.Screen.setCursor(1, 1);
   Brain.Screen.print("Sorting cards by color");
 
-  for (int i = 0; i < 52; i++) 
+  int colorPile = 0;
+  // 4 is cyan
+  while (colorPile != 4)
+  //for (int i = 0; i < 52; i++) 
   {
-    int colorPile = 0;
     colorPile = getCardColor();
 
     if (colorPile == 0) // red
@@ -563,10 +627,14 @@ void colorSort()
     {
       rotateToHeadingPID(270, 1.25, 0.0, 0.12, 2000, 2.0);
       wait(200, msec);
-    }
-    else if (colorPile == 999)
+    } 
+    else if (colorPile == 5)
     {
-      wait(200, msec);
+      Brain.Screen.clearScreen();
+      Brain.Screen.setCursor(1,1);
+      Brain.Screen.print("unrecognized color %f", OpticalSensor.hue());
+      wait(5000, msec);
+      
     }
 
     dispenseOneCard();
@@ -581,8 +649,14 @@ void colorSort()
     Brain.Screen.setCursor(i + 1, 1);
     Brain.Screen.print("pile %d has %d cards", i, cardsPerPile[i]);
   }
-  Brain.Screen.setCursor(6, 1);
-  Brain.Screen.print("missing: %d", cardsPerPile[4]);
+  
+  wait(1,seconds);
+  Brain.Screen.clearScreen();
+  Brain.Screen.setCursor(1, 1);
+  Brain.Screen.print("cyan: %d", cardsPerPile[4]);
+  Brain.Screen.setCursor(2, 1);
+  Brain.Screen.print("NA: %d", cardsPerPile[4]);
+
 }
 
 // ---------------------- main: random shuffle dealing ----------------------
@@ -592,6 +666,14 @@ int main()
 	configureAllSensors();
 
 	srand(Brain.Timer.time(msec));
+
+  // while (true) {
+  //   wait(1,seconds);
+
+  //   Brain.Screen.clearScreen();
+  //   Brain.Screen.setCursor(1,1);
+  //   Brain.Screen.print("hue: %.2f", OpticalSensor.hue());
+  // }
 
 	// gets deal mode
 	int mode = selectMode();
@@ -685,7 +767,7 @@ int main()
 			  wait(1, seconds);
 
 			  // ask user if they want another cycle
-			  keepDealing = askContinue();
+			  keepDealing = askContinue(players);
         
         wait(1, seconds);
 		  } 
@@ -719,7 +801,7 @@ int main()
 			  wait(1, seconds);
 
 			  // ask user if they want another cycle
-			  keepDealing = askContinue();
+			  keepDealing = askContinue(players);
 
         wait(1, seconds);
 		  }
