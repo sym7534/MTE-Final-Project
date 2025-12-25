@@ -7,5 +7,3 @@ Authors:
     Sobhan Zare 
 
 
-v10 is the buggy emergency stop version - do NOT USE
-
